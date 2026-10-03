@@ -171,7 +171,7 @@ class MainMenu(ctk.CTkTabview):
         self.show_extra_display = ctk.CTkCheckBox(master=self.tab(EXTRA), text='Show extra display')
         self.show_extra_display.grid(row=0, column=0, pady=10)
 
-        #Generate File
+        #Save Config
         clear_btn = ctk.CTkButton(master=self.tab(SAVE), text='Clear all custom positions', fg_color='#FF0000', hover_color='#9B0000', command=self.unset_flag)
         clear_btn.grid(row=0, column=0, pady=10, sticky='ew')
 
