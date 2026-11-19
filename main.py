@@ -368,7 +368,7 @@ class MainMenu(ctk.CTkTabview):
             play_audio = config.read_variable(AUDIO_OPTIONS, 'audiodump_volume')
         except KeyError:
             play_audio = 1
-        if float(play_audio) <= 0.0:
+        if float(play_audio) >= 0.0:
             self.play_audio.select()
 
         self.fadein_audio.delete(0, 'end')
