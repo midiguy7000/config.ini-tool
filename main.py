@@ -28,23 +28,45 @@ EXTRA = 'Extra Display (optional, advanced)'
 SAVE = 'Save Config'
 MKW_YELLOW = 'F2E622FF'
 PURE_WHITE = 'FFFFFFFF'
-
-
+ENCODING_OPTIONS = 'Encoding options'
+AUDIO_OPTIONS = 'Audio options'
+INFO_DISPLAY = 'Infodisplay'
+INPUTDISPLAY = 'Input display'
+AUTHORDISPLAY = 'Author display'
 
 class ConfigFile(configparser.ConfigParser):
-    def __init__(self, file_path: str):
+    """A modified version of configparser.ConfigParser that is easier to use"""
+    def __init__(self, file_path: str, read_mode: bool):
         super().__init__()
         self.file_path = file_path
-        with open(self.file_path, 'w') as file:
-            file.close()
+        self.read_mode = read_mode
+        if not read_mode:
+            with open(self.file_path, 'w') as file:
+                file.close()
+        else:
+            self.read(self.file_path, encoding='utf-8')
+
+    def __str__(self):
+        return self.file_path
+
+    def read_variable(self, section: str, variable_name: str) -> str:
+        """Returns the value of a variable with a given section and variable name (for use in read mode only)."""
+        if not self.read_mode:
+            return None
+        else:
+            return self[section][variable_name]
 
     def create_section(self, section_name: str) -> None:
+        """Creates a section with a given name (for use in write mode only)"""
         self[section_name] = {}
 
     def create_variable(self, variable: tuple[str], section: str) -> None:
+        """Creates a variable with a variable name, value, and section (for use in write mode only)
+        \n Format: create_variable((variable name, variable value), section)"""
         self[section][variable[0]] = variable[1]
 
     def write_to_file(self) -> None:
+        """Writes all created sections and variables to file_path (for use in write mode only)"""
         with open(self.file_path, 'w') as file:
             self.write(file)
             file.close()
@@ -175,8 +197,11 @@ class MainMenu(ctk.CTkTabview):
         clear_btn = ctk.CTkButton(master=self.tab(SAVE), text='Clear all custom positions', fg_color='#FF0000', hover_color='#9B0000', command=self.unset_flag)
         clear_btn.grid(row=0, column=0, pady=10, sticky='ew')
 
+        self.import_button = ctk.CTkButton(master=self.tab(SAVE), text='Import config file', command=lambda: self.import_config())
+        self.import_button.grid(row=1, column=0, pady=10, sticky='ew')
+
         self.save_btn = ctk.CTkButton(master=self.tab(SAVE), text='Save changes', command=self.save_changes)
-        self.save_btn.grid(row=1, column=0, pady=10, sticky='ew')
+        self.save_btn.grid(row=2, column=0, pady=10, sticky='ew')
 
         self.new_author_data: None | list[None | tuple] = None
 
@@ -243,7 +268,7 @@ class MainMenu(ctk.CTkTabview):
                 start_frame = author[2]
                 end_frame = author[3]
             self.new_author_data.append((author[0], start_frame, end_frame))
-        self.name_display_file = open(open_txt_file(), 'w')
+        self.name_display_file = open('FrameDumps\\authors.txt', 'w')
         with self.name_display_file as file:
             for author in self.new_author_data:
                 loop_num += 1
@@ -266,33 +291,213 @@ class MainMenu(ctk.CTkTabview):
         text.save('_internal\\name_display.png')
         return self.custom_pos('_internal\\name_display', xsub=-12, ysub=-8)
         
-        
-    def save_changes(self) -> None:
+    def import_config(self):
         file_path = open_file()
-        config = ConfigFile(file_path)
+        if file_path[-3] + file_path[-2] + file_path[-1] != 'ini':
+            return None
+        config = ConfigFile(file_path, True)
+
+        #Encoding Options
+        try: 
+            style = config.read_variable(ENCODING_OPTIONS, 'encode_style')
+        except KeyError:
+            style = 'normal'
+        if style in {'yt', 'youtube'}:
+            self.encode_style.set('YouTube')
+        elif style == 'discord':
+            self.encode_style.set('Discord')
+        else:
+            self.encode_style.set('Standard')
+
+        try:
+            preset = config.read_variable(ENCODING_OPTIONS, 'preset')
+        except KeyError:
+            preset = 'medium'
+        self.preset.set(preset)
+
+        self.threads.delete(0, 'end')
+        try:
+            threads = config.read_variable(ENCODING_OPTIONS, 'threads')
+        except KeyError:
+            threads = '8'
+        self.threads.insert(0, threads)
+
+        try:
+            resolution = config.read_variable(ENCODING_OPTIONS, 'resize_resolution')
+        except KeyError:
+            resolution = '1080'
+        if resolution in {'1080', '720', '1440'}:
+            resolution += 'p'
+        elif resolution == '2160':
+            resolution = '4K UHD'
+        else:
+            resolution = '1080'
+        self.resolution.set(resolution)
+
+        try:
+            scaling = config.read_variable(ENCODING_OPTIONS, 'scaling_option')
+        except KeyError:
+            scaling = 'bilinear'
+        if scaling in {'lanczos', 'bicubic', 'bilinear'}:
+            scaling = scaling.capitalize()
+        else:
+            scaling = 'bilinear'
+        self.scaling.set(scaling)
+
+        self.output.delete(0, 'end')
+        self.fadein_video.delete(0, 'end')
+        self.fadeout_video.delete(0, 'end')
+        try:
+            output_filename = config.read_variable(ENCODING_OPTIONS, 'output_filename')
+        except KeyError:
+            output_filename = 'output.mp4'
+        self.output.insert(0, output_filename)
+        try:
+            video_fade_in = config.read_variable(ENCODING_OPTIONS, 'video_fade_in')
+        except KeyError:
+            video_fade_in = '0'
+        self.fadein_video.insert(0, video_fade_in)
+        try:
+            video_fade_out = config.read_variable(ENCODING_OPTIONS, 'video_fade_out')
+        except KeyError:
+            video_fade_out = '0'
+        self.fadeout_video.insert(0, video_fade_out)
+
+        #Audio_options
+        try:
+            play_audio = config.read_variable(AUDIO_OPTIONS, 'audiodump_volume')
+        except KeyError:
+            play_audio = 1
+        if float(play_audio) <= 0.0:
+            self.play_audio.select()
+
+        self.fadein_audio.delete(0, 'end')
+        self.fadeout_audio.delete(0, 'end')
+        try:
+            audio_fade_in = config.read_variable(AUDIO_OPTIONS, 'fade_in')
+        except KeyError:
+            audio_fade_in = '0'
+        self.fadein_audio.insert(0, audio_fade_in)
+        try:
+            audio_fade_out = config.read_variable(AUDIO_OPTIONS, 'fade_out')
+        except KeyError:
+            audio_fade_out = '0'
+        self.fadeout_audio.insert(0, audio_fade_out)
+        
+        #IV/EV Display
+        try:
+            show_ivev_disp = config.read_variable(INFO_DISPLAY, 'show_infodisplay')
+        except KeyError:
+            show_ivev_disp = 'False'
+        if show_ivev_disp not in {'True', 'False'}:
+            show_ivev_disp = 'False'
+
+        if show_ivev_disp == 'True':
+            self.show_infodisplay.select()
+
+        try:
+            show_ev = config.read_variable(INFO_DISPLAY, 'show_ev_xyz')
+        except KeyError:
+            show_ev = 'False'
+        try:
+            show_iv = config.read_variable(INFO_DISPLAY, 'show_iv_xyz')
+        except KeyError:
+            show_iv = 'False'
+
+        if show_ev not in {'True', 'False'}:
+            show_ev = 'False'
+        if show_iv not in {'True', 'False'}:
+            show_iv = 'False'
+
+        if show_ev == 'True' and show_ev == 'True':
+            self.type_of_info.set('IV & EV')
+        elif show_ev == 'False' and show_iv == 'True':
+            self.type_of_info.set('IV only')
+        elif show_ev == 'True' and show_iv == 'False':
+            self.type_of_info.set('EV only')
+        else:
+            self.type_of_info.set('Display Type')
+
+        #Speedometer
+        try:
+            show_speedo = config.read_variable(INFO_DISPLAY, 'pretty_speedometer_type')
+        except KeyError:
+            show_speedo = 'none'
+        if show_speedo in {'iv', 'ev', 'xyz'}:
+            speedo_type = show_speedo.upper()
+            show_speedo = True
+        else:
+            speedo_type = None
+            show_speedo = False
+
+        if show_speedo:
+            self.show_speedometer.select()
+            self.speedometer_type.set(speedo_type)
+
+        #Input display
+        try:
+            show_input_disp = config.read_variable(INPUTDISPLAY, 'show_input_display')
+        except KeyError:
+            show_input_disp = 'False'
+        if show_input_disp == 'True':
+            self.show_input_display.select()
+        try:
+            show_stick_text = config.read_variable(INPUTDISPLAY, 'draw_stick_text')
+        except KeyError:
+            show_stick_text = 'False'
+        if show_stick_text == 'True':
+            self.show_stick_display.select()
+
+        #Name display
+        try:
+            show_name_disp = config.read_variable(AUTHORDISPLAY, 'show_author_display')
+        except KeyError:
+            show_name_disp = 'False'
+        if show_name_disp == 'True':
+            self.show_stick_display.select()
+
+        #Speed display
+        try:
+            show_speed_disp = config.read_variable('Speed display', 'show_speed_display')
+        except KeyError:
+            show_speed_disp = 'False'
+        if show_speed_disp == 'True':
+            self.show_speed_display.select()
+
+        #Extra display
+        try:
+            show_extra_disp = config.read_variable('Extra display', 'show_extra_display')
+        except KeyError:
+            show_extra_disp = 'False'
+        if show_extra_disp == 'True':
+            self.show_extra_display.select()
+
+    def save_changes(self) -> None:
+        file_path = 'FrameDumps\\config.ini'
+        config = ConfigFile(file_path, False)
 
         #Encoding options
-        config.create_section('Encoding options')
+        config.create_section(ENCODING_OPTIONS)
 
         encode_style = self.encode_style.get()
 
         if encode_style in {'YouTube', 'Discord'}:
-            config.create_variable(('encode_style', encode_style.lower()), 'Encoding options')
+            config.create_variable(('encode_style', encode_style.lower()), ENCODING_OPTIONS)
         else:
-            config.create_variable(('encode_style', 'normal'), 'Encoding options')
+            config.create_variable(('encode_style', 'normal'), ENCODING_OPTIONS)
 
         if encode_style == 'Discord':
-            config.create_variable(('output_file_size', '19'), 'Encoding options')
+            config.create_variable(('output_file_size', '19'), ENCODING_OPTIONS)
         else:
-            config.create_variable(('output_file_size', ' '), 'Encoding options')
+            config.create_variable(('output_file_size', ' '), ENCODING_OPTIONS)
 
-        config.create_variable(('crf_value', '0'), 'Encoding options')
+        config.create_variable(('crf_value', '0'), ENCODING_OPTIONS)
 
         preset = self.preset.get()
 
         if preset not in {"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"}:
             preset = 'medium'
-        config.create_variable(('preset', preset), 'Encoding options')
+        config.create_variable(('preset', preset), ENCODING_OPTIONS)
 
         threads = self.threads.get()
 
@@ -303,7 +508,7 @@ class MainMenu(ctk.CTkTabview):
 
         threads = str(threads)
 
-        config.create_variable(('threads', threads), 'Encoding options')
+        config.create_variable(('threads', threads), ENCODING_OPTIONS)
 
         resolution = self.resolution.get()
 
@@ -314,9 +519,9 @@ class MainMenu(ctk.CTkTabview):
         else:
             resolution = '1080'
 
-        config.create_variable(('resize_resolution', resolution), 'Encoding options')
+        config.create_variable(('resize_resolution', resolution), ENCODING_OPTIONS)
 
-        config.create_variable(('resize_style', 'stretch'), 'Encoding options')
+        config.create_variable(('resize_style', 'stretch'), ENCODING_OPTIONS)
 
         scaling = self.scaling.get()
         scaling = scaling.lower()
@@ -324,7 +529,7 @@ class MainMenu(ctk.CTkTabview):
         if scaling not in {'lanczos', 'bicubic', 'bilinear'}:
             scaling = 'bilinear'
 
-        config.create_variable(('scaling_option', scaling), 'Encoding options')
+        config.create_variable(('scaling_option', scaling), ENCODING_OPTIONS)
 
         output_filename = self.output.get()
         try:
@@ -339,7 +544,7 @@ class MainMenu(ctk.CTkTabview):
             if output_filename != '' or output_filename != '.':
                 output_filename += '.mp4'
 
-        config.create_variable(('output_filename', output_filename), 'Encoding options')
+        config.create_variable(('output_filename', output_filename), ENCODING_OPTIONS)
 
         video_fade_in = self.fadein_video.get()
 
@@ -350,7 +555,7 @@ class MainMenu(ctk.CTkTabview):
 
         video_fade_in = str(video_fade_in)
 
-        config.create_variable(('video_fade_in', video_fade_in), 'Encoding options')
+        config.create_variable(('video_fade_in', video_fade_in), ENCODING_OPTIONS)
 
         video_fade_out = self.fadeout_video.get()
 
@@ -361,9 +566,9 @@ class MainMenu(ctk.CTkTabview):
 
         video_fade_out = str(video_fade_out)
 
-        config.create_variable(('video_fade_out', video_fade_out), 'Encoding options')
+        config.create_variable(('video_fade_out', video_fade_out), ENCODING_OPTIONS)
 
-        config.create_variable(('special_effects', 'none'), 'Encoding options')
+        config.create_variable(('special_effects', 'none'), ENCODING_OPTIONS)
 
         #Adding utils files (NOTE: Nothing in here affects the config file)
         author_utils = '_internal\\author_display_util' + resolution + '.py'
@@ -372,15 +577,15 @@ class MainMenu(ctk.CTkTabview):
         shutil.copy('_internal\\input_display_util.py', f'{EXTRADIR}\\input_display_utils.py')
             
         #Audio options
-        config.create_section('Audio options')
+        config.create_section(AUDIO_OPTIONS)
 
         play_music = self.play_audio.get()
-        config.create_variable(('audiodump_target', 'dsp'), 'Audio options')
-        config.create_variable(('audiodump_volume', str(play_music) + '.0'), 'Audio options')
+        config.create_variable(('audiodump_target', 'dsp'), AUDIO_OPTIONS)
+        config.create_variable(('audiodump_volume', str(play_music) + '.0'), AUDIO_OPTIONS)
 
-        config.create_variable(('bgm_filename', ' '), 'Audio options')
-        config.create_variable(('bgm_volume', '1.0'), 'Audio options')
-        config.create_variable(('bgm_offset', '0'), 'Audio options')
+        config.create_variable(('bgm_filename', ' '), AUDIO_OPTIONS)
+        config.create_variable(('bgm_volume', '1.0'), AUDIO_OPTIONS)
+        config.create_variable(('bgm_offset', '0'), AUDIO_OPTIONS)
 
         fade_in = self.fadein_audio.get()
 
@@ -391,7 +596,7 @@ class MainMenu(ctk.CTkTabview):
 
         fade_in = str(fade_in)
 
-        config.create_variable(('fade_in', fade_in), 'Audio options')
+        config.create_variable(('fade_in', fade_in), AUDIO_OPTIONS)
 
         fade_out = self.fadeout_audio.get()
 
@@ -402,16 +607,16 @@ class MainMenu(ctk.CTkTabview):
 
         fade_out = str(fade_out)
 
-        config.create_variable(('fade_out', fade_out), 'Audio options')
+        config.create_variable(('fade_out', fade_out), AUDIO_OPTIONS)
 
         #Infodisplay
-        config.create_section('Infodisplay')
+        config.create_section(INFO_DISPLAY)
 
         infodisplay_box = str(bool(self.show_infodisplay.get()))
 
-        config.create_variable(('font', 'MKW_Font'), 'Infodisplay')
+        config.create_variable(('font', 'MKW_Font'), INFO_DISPLAY)
 
-        config.create_variable(('font_size', '48'), 'Infodisplay')
+        config.create_variable(('font_size', '48'), INFO_DISPLAY)
 
         if resolution == '2160':
             font_scaling = '4.5'
@@ -422,41 +627,41 @@ class MainMenu(ctk.CTkTabview):
         else:
             font_scaling = '2.25'
 
-        config.create_variable(('mkw_font_scaling', font_scaling), 'Infodisplay')
+        config.create_variable(('mkw_font_scaling', font_scaling), INFO_DISPLAY)
 
-        config.create_variable(('spacing', '6'), 'Infodisplay')
+        config.create_variable(('spacing', '6'), INFO_DISPLAY)
 
-        config.create_variable(('fade_animation', 'False'), 'Infodisplay')
+        config.create_variable(('fade_animation', 'False'), INFO_DISPLAY)
 
-        config.create_variable(('fly_animation', 'True'), 'Infodisplay')
+        config.create_variable(('fly_animation', 'True'), INFO_DISPLAY)
 
-        config.create_variable(('fly_in_direction', 'bottom'), 'Infodisplay')
+        config.create_variable(('fly_in_direction', 'bottom'), INFO_DISPLAY)
 
-        config.create_variable(('invert_text', 'False'), 'Infodisplay')
+        config.create_variable(('invert_text', 'False'), INFO_DISPLAY)
 
-        config.create_variable(('outline_width', '3'), 'Infodisplay')
+        config.create_variable(('outline_width', '3'), INFO_DISPLAY)
 
-        config.create_variable(('outline_color', '000000FF'), 'Infodisplay')
+        config.create_variable(('outline_color', '000000FF'), INFO_DISPLAY)
 
         #Speedometer
         show_speedo = bool(self.show_speedometer.get())
         speedo_type = self.speedometer_type.get()
         if not show_speedo:
-            config.create_variable(('pretty_speedometer_type', 'none'), 'Infodisplay')
-            config.create_variable(('show_infodisplay', infodisplay_box), 'Infodisplay')
+            config.create_variable(('pretty_speedometer_type', 'none'), INFO_DISPLAY)
+            config.create_variable(('show_infodisplay', infodisplay_box), INFO_DISPLAY)
         else:
-            config.create_variable(('show_infodisplay', 'True'), 'Infodisplay')
+            config.create_variable(('show_infodisplay', 'True'), INFO_DISPLAY)
             if speedo_type in {'XZ', 'XYZ'}:
-                config.create_variable(('pretty_speedometer_type', speedo_type.lower()), 'Infodisplay')
+                config.create_variable(('pretty_speedometer_type', speedo_type.lower()), INFO_DISPLAY)
             else:
-                config.create_variable(('pretty_speedometer_type', 'iv'), 'Infodisplay')
+                config.create_variable(('pretty_speedometer_type', 'iv'), INFO_DISPLAY)
 
-        config.create_variable(('pretty_speedometer_color', 'F2E622FF'), 'Infodisplay')
+        config.create_variable(('pretty_speedometer_color', 'F2E622FF'), INFO_DISPLAY)
 
-        config.create_variable(('enable_custom_text', str(show_speedo)), 'Infodisplay')
+        config.create_variable(('enable_custom_text', str(show_speedo)), INFO_DISPLAY)
 
-        config.create_variable(('custom_text_anchor_1', '0.745, 0.860'), 'Infodisplay')
-        config.create_variable(('custom_text_scaling_1', font_scaling), 'Infodisplay')
+        config.create_variable(('custom_text_anchor_1', '0.745, 0.860'), INFO_DISPLAY)
+        config.create_variable(('custom_text_scaling_1', font_scaling), INFO_DISPLAY)
 
         speedo_text = self.speedometer_text.get()
         if speedo_text not in {'"SPEED"', '"KM/H"'}:
@@ -466,8 +671,8 @@ class MainMenu(ctk.CTkTabview):
         else:
             new_speedo_text = 's<<p<<e<<<e<<d'
         
-        config.create_variable(('custom_text_1', new_speedo_text), 'Infodisplay')
-        config.create_variable(('custom_text_color_1', MKW_YELLOW), 'Infodisplay')
+        config.create_variable(('custom_text_1', new_speedo_text), INFO_DISPLAY)
+        config.create_variable(('custom_text_color_1', MKW_YELLOW), INFO_DISPLAY)
 
         infodisplay_type = self.type_of_info.get()
         if infodisplay_type == 'IV only':
@@ -486,49 +691,49 @@ class MainMenu(ctk.CTkTabview):
         anchor = self.info_pos
         if anchor == None:
             anchor = '0, 0'
-        config.create_variable(('anchor', anchor), 'Infodisplay')
+        config.create_variable(('anchor', anchor), INFO_DISPLAY)
 
-        config.create_variable(('anchor_style', 'left'), 'Infodisplay')
+        config.create_variable(('anchor_style', 'left'), INFO_DISPLAY)
 
         if infodisplay_box != 'True':
             show_iv = False
             show_ev = False
 
-        config.create_variable(('show_iv_xyz', str(show_iv)), 'Infodisplay')
-        config.create_variable(('text_iv_xyz', '. I>V>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'), 'Infodisplay')
-        config.create_variable(('color_iv_xyz', MKW_YELLOW), 'Infodisplay')
+        config.create_variable(('show_iv_xyz', str(show_iv)), INFO_DISPLAY)
+        config.create_variable(('text_iv_xyz', '. I>V>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'), INFO_DISPLAY)
+        config.create_variable(('color_iv_xyz', MKW_YELLOW), INFO_DISPLAY)
 
-        config.create_variable(('show_ev_xyz', str(show_ev)), 'Infodisplay')
-        config.create_variable(('text_ev_xyz', '. EV>>>>>>>>>>>>>>>>>>>>>>'), 'Infodisplay')
-        config.create_variable(('color_ev_xyz', MKW_YELLOW), 'Infodisplay')  
+        config.create_variable(('show_ev_xyz', str(show_ev)), INFO_DISPLAY)
+        config.create_variable(('text_ev_xyz', '. EV>>>>>>>>>>>>>>>>>>>>>>'), INFO_DISPLAY)
+        config.create_variable(('color_ev_xyz', MKW_YELLOW), INFO_DISPLAY)  
 
         #Input Display
-        config.create_section('Input display')
+        config.create_section(INPUTDISPLAY)
 
         show_input = bool(self.show_input_display.get())
-        config.create_variable(('show_input_display', str(show_input)), 'Input display')
+        config.create_variable(('show_input_display', str(show_input)), INPUTDISPLAY)
 
         show_numbers = bool(self.show_stick_display.get())
-        config.create_variable(('draw_stick_text', str(show_numbers)), 'Input display')
+        config.create_variable(('draw_stick_text', str(show_numbers)), INPUTDISPLAY)
 
         anchor2 = self.input_pos
         if anchor2 == None:
             anchor2 = '0, 0'
-        config.create_variable(('top_left', anchor2), 'Input display')
+        config.create_variable(('top_left', anchor2), INPUTDISPLAY)
 
-        config.create_variable(('fade_animation', 'False'), 'Input display')
-        config.create_variable(('fly_animation', 'True'), 'Input display')
-        config.create_variable(('fly_in_direction', 'bottom'), 'Input display')
+        config.create_variable(('fade_animation', 'False'), INPUTDISPLAY)
+        config.create_variable(('fly_animation', 'True'), INPUTDISPLAY)
+        config.create_variable(('fly_in_direction', 'bottom'), INPUTDISPLAY)
 
-        config.create_variable(('width', '5'), 'Input display')
-        config.create_variable(('outline_width', '4'), 'Input display')
+        config.create_variable(('width', '5'), INPUTDISPLAY)
+        config.create_variable(('outline_width', '4'), INPUTDISPLAY)
 
-        config.create_variable(('color_shoulder_left', PURE_WHITE), 'Input display')
-        config.create_variable(('color_shoulder_right', PURE_WHITE), 'Input display')
-        config.create_variable(('color_dpad', PURE_WHITE), 'Input display')
-        config.create_variable(('color_analog', PURE_WHITE), 'Input display')
-        config.create_variable(('color_a_button', PURE_WHITE), 'Input display')
-        config.create_variable(('color_stick_text', PURE_WHITE), 'Input display')
+        config.create_variable(('color_shoulder_left', PURE_WHITE), INPUTDISPLAY)
+        config.create_variable(('color_shoulder_right', PURE_WHITE), INPUTDISPLAY)
+        config.create_variable(('color_dpad', PURE_WHITE), INPUTDISPLAY)
+        config.create_variable(('color_analog', PURE_WHITE), INPUTDISPLAY)
+        config.create_variable(('color_a_button', PURE_WHITE), INPUTDISPLAY)
+        config.create_variable(('color_stick_text', PURE_WHITE), INPUTDISPLAY)
 
         if resolution == '2160':
             input_scaling = 2.7
@@ -539,13 +744,13 @@ class MainMenu(ctk.CTkTabview):
         else:
             input_scaling = 1.35
 
-        config.create_variable(('scaling', str(input_scaling)), 'Input display')
+        config.create_variable(('scaling', str(input_scaling)), INPUTDISPLAY)
 
-        config.create_variable(('scaling_option', scaling), 'Input display')
+        config.create_variable(('scaling_option', scaling), INPUTDISPLAY)
 
-        config.create_variable(('draw_box', 'False'), 'Input display') 
-        config.create_variable(('stick_text_size', '30'), 'Input display') 
-        config.create_variable(('special_effects', 'none'), 'Input display')
+        config.create_variable(('draw_box', 'False'), INPUTDISPLAY) 
+        config.create_variable(('stick_text_size', '30'), INPUTDISPLAY) 
+        config.create_variable(('special_effects', 'none'), INPUTDISPLAY)
 
         #Speed display
         config.create_section('Speed display')
@@ -554,23 +759,23 @@ class MainMenu(ctk.CTkTabview):
         config.create_variable(('show_speed_display', str(show_speed_display)), 'Speed display')
 
         #Name display
-        config.create_section('Author display')
+        config.create_section(AUTHORDISPLAY)
 
         show_name_display = bool(self.show_name_display.get())
-        config.create_variable(('show_author_display', str(show_name_display)), 'Author display')
+        config.create_variable(('show_author_display', str(show_name_display)), AUTHORDISPLAY)
 
-        config.create_variable(('fade_animation', 'False'), 'Author display') 
-        config.create_variable(('fly_animation', 'True'), 'Author display') 
-        config.create_variable(('fly_in_direction', 'top'), 'Author display') 
+        config.create_variable(('fade_animation', 'False'), AUTHORDISPLAY) 
+        config.create_variable(('fly_animation', 'True'), AUTHORDISPLAY) 
+        config.create_variable(('fly_in_direction', 'top'), AUTHORDISPLAY) 
 
         namedisplay_pos = self.namedisp_pos
         if namedisplay_pos == None:
             namedisplay_pos = '0, 0'
-        config.create_variable(('top_left', namedisplay_pos), 'Author display')
+        config.create_variable(('top_left', namedisplay_pos), AUTHORDISPLAY)
 
-        config.create_variable(('author_list_filename', 'authors.txt'), 'Author display')
+        config.create_variable(('author_list_filename', 'authors.txt'), AUTHORDISPLAY)
 
-        config.create_variable(('font', 'FOT-Rodin Pro EB.otf'), 'Author display')
+        config.create_variable(('font', 'FOT-Rodin Pro EB.otf'), AUTHORDISPLAY)
 
         if resolution == '2160':
             font_size = 72
@@ -585,15 +790,15 @@ class MainMenu(ctk.CTkTabview):
             font_size = 36
             outline = 4
 
-        config.create_variable(('font_size', str(font_size)), 'Author display')
+        config.create_variable(('font_size', str(font_size)), AUTHORDISPLAY)
 
-        config.create_variable(('active_text_color', PURE_WHITE), 'Author display')
-        config.create_variable(('inactive_text_color', 'FFFFFF55'), 'Author display')
+        config.create_variable(('active_text_color', PURE_WHITE), AUTHORDISPLAY)
+        config.create_variable(('inactive_text_color', 'FFFFFF55'), AUTHORDISPLAY)
 
-        config.create_variable(('outline_width', str(outline)), 'Author display')
+        config.create_variable(('outline_width', str(outline)), AUTHORDISPLAY)
 
-        config.create_variable(('active_outline_color', '000000FF'), 'Author display')
-        config.create_variable(('inactive_outline_color', '00000055'), 'Author display')
+        config.create_variable(('active_outline_color', '000000FF'), AUTHORDISPLAY)
+        config.create_variable(('inactive_outline_color', '00000055'), AUTHORDISPLAY)
 
         #Extra display
         config.create_section('Extra display')
@@ -606,10 +811,12 @@ class MainMenu(ctk.CTkTabview):
         sys.exit()     
 
 def open_file() -> str:
-    return 'FrameDumps\\config.ini'
-
-def open_txt_file() -> str:
-    return 'FrameDumps\\authors.txt'
+    root = filedialog.askopenfilename(
+        title='Open config.ini',
+        defaultextension='.ini',
+        filetypes=[('*Configuration settings', 'ini')]
+    )
+    return root
 
 if __name__ == '__main__':
     window = Window()
