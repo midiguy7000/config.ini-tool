@@ -74,7 +74,7 @@ class ConfigFile(configparser.ConfigParser):
 class Window(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title('framedump.ini Configurer')
+        self.title('config.ini tool')
         self.geometry('1075x500')
         ctk.set_appearance_mode('dark')
         ctk.set_default_color_theme('green')
