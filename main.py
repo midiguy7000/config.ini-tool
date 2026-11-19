@@ -50,7 +50,7 @@ class ConfigFile(configparser.ConfigParser):
         return self.file_path
 
     def read_variable(self, section: str, variable_name: str) -> str:
-        """Returns the value of a variable with a given section and variable name (for use in read mode only)."""
+        """Returns the value of a variable with a given section and variable name (for use in read mode only)"""
         if not self.read_mode:
             return None
         else:
