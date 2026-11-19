@@ -423,7 +423,7 @@ class MainMenu(ctk.CTkTabview):
             show_speedo = config.read_variable(INFO_DISPLAY, 'pretty_speedometer_type')
         except KeyError:
             show_speedo = 'none'
-        if show_speedo in {'iv', 'ev', 'xyz'}:
+        if show_speedo in {'iv', 'ev', 'xyz', 'xz'}:
             speedo_type = show_speedo.upper()
             show_speedo = True
         else:
